@@ -1,0 +1,23 @@
+version: 0.2
+env:
+  variables:
+    TF_STATE_BUCKET: "tf-state-barkin-12345"
+    TF_STATE_KEY: "s3/main.tfstate"
+    AWS_REGION: "eu-central-1"
+phases:
+  install:
+    commands:
+      - yum install -y unzip
+      - curl -fsSL https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip -o tf.zip
+      - unzip tf.zip && mv terraform /usr/local/bin/ && terraform -version
+  pre_build:
+    commands:
+      - aws s3api head-bucket --bucket "$TF_STATE_BUCKET" 2>/dev/null || aws s3api create-bucket --bucket "$TF_STATE_BUCKET" --create-bucket-configuration LocationConstraint=$AWS_REGION --region $AWS_REGION
+      - printf 'terraform {\n  backend "s3" { bucket = "%s" key = "%s" region = "%s" }\n}\n' "$TF_STATE_BUCKET" "$TF_STATE_KEY" "$AWS_REGION" > backend.tf
+  build:
+    commands:
+      - terraform init -input=false
+      - terraform apply -auto-approve -input=false
+artifacts:
+  files:
+    - '**/*'
